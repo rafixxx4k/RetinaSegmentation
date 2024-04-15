@@ -172,8 +172,18 @@ class ImageLoaderApp:
             print("Manual not available")
 
     def test_model(self):
-        # Function to test the model
-        pass
+        from na5 import find_vessels
+
+        if self.retina_image is None:
+            return
+        self.for5 = find_vessels(self.retina_image, self.mask)
+        self.update_image(1, 2, self.for5)
+
+        if self.manual is not None:
+            print(f"na 5 image{self.image_entry.get()}:", end="\t")
+            accuracy(self.for5.flatten(), self.manual.flatten())
+        else:
+            print("Manual not available")
 
 
 if __name__ == "__main__":

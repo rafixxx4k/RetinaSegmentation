@@ -14,7 +14,7 @@ def accuracy(image1, image2):
     tuple: A tuple containing the accuracy, sensitivity, and specificity values.
     """
     score = [[0, 0], [0, 0]]
-    # [[ture negative, false positive],
+    # [[true negative, false positive],
     # [false negative, true positive]]
     image1 = np.array(image1, dtype=bool)
     image2 = np.array(image2, dtype=bool)
