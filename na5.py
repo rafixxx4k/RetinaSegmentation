@@ -4,6 +4,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_examples.models.pix2pix import pix2pix
 import matplotlib.pyplot as plt
+import joblib
+import os
 
 
 class Augment(tf.keras.layers.Layer):
@@ -19,7 +21,21 @@ class Augment(tf.keras.layers.Layer):
 
 
 def find_vessels(retina_image, mask):
-    print("Finding vessels...")
+
+    if not os.path.exists("model.keras"):
+        print("Model not found, please train the model first.")
+        return
+
+    model = tf.keras.models.load_model("model.keras")
+
+    # TODO use retina_image
+    train_batches, test_batches = prepare_data()
+    for image, mask in test_batches.take(1):
+        predictions = model.predict(image).squeeze()
+        predictions = tf.math.argmax(predictions, axis=-1)
+        predictions = predictions[..., tf.newaxis]
+        display(image[0], mask[0], predictions[0])
+        break
 
 
 def normalize(input_image, input_mask):
@@ -93,31 +109,7 @@ def display(retina_image, true_mask, pred_mask=None):
     plt.show()
 
 
-def create_mask(pred_mask):
-    pred_mask = tf.math.argmax(pred_mask, axis=-1)
-    pred_mask = pred_mask[..., tf.newaxis]
-    return pred_mask[0]
-
-
-def show_predictions(
-    dataset=None, num=1, model=None, sample_image=None, sample_mask=None
-):
-
-    if dataset:
-        for image, mask in dataset.take(num):
-            pred_mask = model.predict(image)
-            display([image[0], mask[0], create_mask(pred_mask)])
-    else:
-        display(
-            [
-                sample_image,
-                sample_mask,
-                create_mask(model.predict(sample_image[tf.newaxis, ...])),
-            ]
-        )
-
-
-def crate_and_train():
+def prepare_data():
 
     # Load the images
     retina_images, masks = load_images()
@@ -144,9 +136,35 @@ def crate_and_train():
         tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(2).repeat()
     )
 
-    print()
+    return train_batches, test_batches
 
-    # Create the model
+
+def train_model():
+
+    train_batches, test_batches = prepare_data()
+
+    # Create and train the model
+    model = create_model()
+    model.fit(
+        train_batches,
+        epochs=10,
+        steps_per_epoch=5,
+        validation_data=test_batches,
+        validation_steps=5,
+    )
+    model.save("model.keras")
+
+    # Evaluate the model
+    for image, mask in test_batches.take(1):
+        predictions = model.predict(image).squeeze()
+        predictions = tf.math.argmax(predictions, axis=-1)
+        predictions = predictions[..., tf.newaxis]
+        display(image[0], mask[0], predictions[0])
+        break
+
+
+def create_model():
+
     base_model = tf.keras.applications.MobileNetV2(
         input_shape=(512, 512, 3), include_top=False
     )
@@ -158,6 +176,7 @@ def crate_and_train():
         "block_13_expand_relu",  # 8x8
         "block_16_project",  # 4x4
     ]
+
     base_model_outputs = [base_model.get_layer(name).output for name in layer_names]
     down_stack = tf.keras.Model(inputs=base_model.input, outputs=base_model_outputs)
     down_stack.trainable = False
@@ -181,23 +200,7 @@ def crate_and_train():
         model, show_shapes=True, expand_nested=False, dpi=128, to_file="model.png"
     )
 
-    # Train the model
-    model.fit(
-        train_batches,
-        epochs=10,
-        steps_per_epoch=5,
-        validation_data=test_batches,
-        validation_steps=5,
-    )
-
-    # Evaluate the model
-    predictions = model.predict(x_test)
-    predictions = tf.math.argmax(predictions, axis=-1)
-    predictions = predictions[..., tf.newaxis]
-    predictions = tf.squeeze(predictions)
-
-    # Display the predictions
-    display(x_test[0], y_test[0], predictions[0])
+    return model
 
 
 def unet_model(output_channels, down_stack, up_stack):
@@ -223,5 +226,6 @@ def unet_model(output_channels, down_stack, up_stack):
 
 if __name__ == "__main__":
     # Set seed for reproducibility, the number was chosen by @rafixxx4k, DM him for more information
-    np.random.seed(42)
-    crate_and_train()
+    #  np.random.seed(42)
+    # train_model()
+    find_vessels(None, None)
