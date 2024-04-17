@@ -6,6 +6,18 @@ from tensorflow_examples.models.pix2pix import pix2pix
 import matplotlib.pyplot as plt
 
 
+class Augment(tf.keras.layers.Layer):
+    def __init__(self, seed=42):
+        super().__init__()
+        self.augment_inputs = tf.keras.layers.RandomFlip("horizontal", seed=seed)
+        self.augment_labels = tf.keras.layers.RandomFlip("horizontal", seed=seed)
+
+    def call(self, inputs, labels):
+        inputs = self.augment_inputs(inputs)
+        labels = self.augment_labels(labels)
+        return inputs, labels
+
+
 def find_vessels(retina_image, mask):
     print("Finding vessels...")
 
@@ -41,7 +53,7 @@ def load_images():
         mask = np.array(Image.open(mask_path))
 
         retina_image, mask = normalize(retina_image, mask)
-        retina_image, mask = resize(retina_image, mask)
+        retina_image, mask = resize(retina_image, mask, size=(512, 512))
 
         if retina_image is None:
             print(f"Failed to load image: {image_path}")
@@ -59,74 +71,84 @@ def load_images():
     return retina_images, masks
 
 
-def display_sample(retina_image, true_mask, pred_mask=None):
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    plt.title("Retina Image")
-    plt.imshow(retina_image.numpy().squeeze(), cmap="gray")
-    plt.subplot(1, 2, 2)
-    plt.title("True Mask")
-    plt.imshow(true_mask.numpy().squeeze(), cmap="gray")
-    plt.savefig("sample.png")
-    # plt.show()
+def display(retina_image, true_mask, pred_mask=None):
 
+    figs = 3 if pred_mask is not None else 2
+    plt.figure(figsize=(figs * 6, 6))
 
-def display_prediction(retina_image, true_mask, pred_mask):
-    plt.figure(figsize=(18, 6))
-    plt.subplot(1, 3, 1)
+    plt.subplot(1, figs, 1)
     plt.title("Retina Image")
     plt.imshow(tf.squeeze(retina_image).numpy(), cmap="gray")
-    plt.subplot(1, 3, 2)
+
+    plt.subplot(1, figs, 2)
     plt.title("True Mask")
     plt.imshow(tf.squeeze(true_mask).numpy(), cmap="gray")
 
-    plt.subplot(1, 3, 3)
-    plt.title("Predicted Mask")
-    plt.imshow(tf.squeeze(pred_mask).numpy(), cmap="gray")
+    if pred_mask is not None:
+        plt.subplot(1, figs, 3)
+        plt.title("Predicted Mask")
+        plt.imshow(tf.squeeze(pred_mask).numpy(), cmap="gray")
 
-    plt.savefig("sample_comparison.png")
+    plt.savefig("sample.png")
     plt.show()
 
 
-# def create_mask(pred_mask):
-#     pred_mask = tf.math.argmax(pred_mask, axis=-1)
-#     pred_mask = pred_mask[..., tf.newaxis]
-#     return pred_mask[0]
+def create_mask(pred_mask):
+    pred_mask = tf.math.argmax(pred_mask, axis=-1)
+    pred_mask = pred_mask[..., tf.newaxis]
+    return pred_mask[0]
 
 
-# def show_predictions(dataset=None, num=1):
-#     if dataset:
-#         for image, mask in dataset.take(num):
-#             pred_mask = model.predict(image)
-#             display_sample([image[0], mask[0], create_mask(pred_mask)])
-#     else:
-#         display_sample(
-#             [
-#                 sample_image,
-#                 sample_mask,
-#                 create_mask(model.predict(sample_image[tf.newaxis, ...])),
-#             ]
-#         )
+def show_predictions(
+    dataset=None, num=1, model=None, sample_image=None, sample_mask=None
+):
+
+    if dataset:
+        for image, mask in dataset.take(num):
+            pred_mask = model.predict(image)
+            display([image[0], mask[0], create_mask(pred_mask)])
+    else:
+        display(
+            [
+                sample_image,
+                sample_mask,
+                create_mask(model.predict(sample_image[tf.newaxis, ...])),
+            ]
+        )
 
 
-def train_model():
+def crate_and_train():
 
+    # Load the images
     retina_images, masks = load_images()
-    random_index = np.random.randint(0, len(retina_images))
-    display_sample(retina_images[random_index], masks[random_index])
 
+    # Split the data into training and testing sets
     train_indices = np.random.rand(len(retina_images)) < 0.7
-
     x_train = np.array(retina_images)[train_indices]
     y_train = np.array(masks)[train_indices]
     x_test = np.array(retina_images)[~train_indices]
     y_test = np.array(masks)[~train_indices]
 
-    print("Training data:", x_train.shape, y_train.shape)
-    print("Test data:", x_test.shape, y_test.shape)
+    # Prepare training and testing batches
+    train_batches = (
+        tf.data.Dataset.from_tensor_slices((x_train, y_train))
+        .cache()
+        .shuffle(len(x_train))
+        .batch(3)
+        .repeat()
+        .map(Augment())
+        .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+    )
 
+    test_batches = (
+        tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(2).repeat()
+    )
+
+    print()
+
+    # Create the model
     base_model = tf.keras.applications.MobileNetV2(
-        input_shape=x_train[0].shape, include_top=False
+        input_shape=(512, 512, 3), include_top=False
     )
 
     layer_names = [
@@ -154,40 +176,33 @@ def train_model():
         metrics=["accuracy"],
     )
 
+    # Save the model architecture to a file
     tf.keras.utils.plot_model(
         model, show_shapes=True, expand_nested=False, dpi=128, to_file="model.png"
     )
 
-    model.fit(x_train, y_train, epochs=10, validation_data=(x_test, y_test))
+    # Train the model
+    model.fit(
+        train_batches,
+        epochs=10,
+        steps_per_epoch=5,
+        validation_data=test_batches,
+        validation_steps=5,
+    )
 
+    # Evaluate the model
     predictions = model.predict(x_test)
-
-    # print("Predictions shape:", predictions.shape)
-    print("True mask shape:", y_test.shape)
-
-    print("Predictions shape:", predictions.shape)
-    # print("Predictions:", predictions[0])
-    # print("True mask:", y_test[0])
     predictions = tf.math.argmax(predictions, axis=-1)
     predictions = predictions[..., tf.newaxis]
-    print("Predictions shape:", predictions.shape)
-    # print("Predictions:", predictions[0])
     predictions = tf.squeeze(predictions)
-    print("Predictions shape:", predictions.shape)
 
-    # print("true mask: ", y_test[0])
-    # print("predictions: ", predictions[0])
-    for i in range(128):
-        for j in range(128):
-            print(y_test[0][i][j], predictions[0][i][j])
-
-    for i in range(2):
-        display_prediction(x_test[i], y_test[i], predictions[i])
+    # Display the predictions
+    display(x_test[0], y_test[0], predictions[0])
 
 
 def unet_model(output_channels, down_stack, up_stack):
 
-    inputs = tf.keras.layers.Input(shape=[128, 128, 3])
+    inputs = tf.keras.layers.Input(shape=[512, 512, 3])
     skips = down_stack(inputs)
     x = skips[-1]
     skips = reversed(skips[:-1])
@@ -209,4 +224,4 @@ def unet_model(output_channels, down_stack, up_stack):
 if __name__ == "__main__":
     # Set seed for reproducibility, the number was chosen by @rafixxx4k, DM him for more information
     np.random.seed(42)
-    train_model()
+    crate_and_train()
