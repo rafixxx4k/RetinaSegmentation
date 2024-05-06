@@ -27,15 +27,14 @@ def find_vessels(retina_image, mask):
         return
 
     model = tf.keras.models.load_model("model.keras")
+    retina_image, mask = load_image(retina_image, mask)
+    retina_image = tf.expand_dims(retina_image, axis=0)
+    prediction = model.predict(retina_image)
+    prediction = tf.math.argmax(prediction, axis=-1)
+    prediction = tf.squeeze(prediction)
+    retina_image, mask = resize(retina_image, mask, size=(584, 512))
 
-    # TODO use retina_image
-    train_batches, test_batches = prepare_data()
-    for image, mask in test_batches.take(1):
-        predictions = model.predict(image).squeeze()
-        predictions = tf.math.argmax(predictions, axis=-1)
-        predictions = predictions[..., tf.newaxis]
-        display(image[0], mask[0], predictions[0])
-        break
+    return prediction.numpy().astype(bool)
 
 
 def normalize(input_image, input_mask):
@@ -54,7 +53,19 @@ def resize(input_image, input_mask, size=(128, 128)):
     return input_image, input_mask
 
 
-def load_images():
+def load_image(image_path, mask_path):
+
+    retina_image = cv2.imread(image_path)
+    retina_image = cv2.cvtColor(retina_image, cv2.COLOR_BGR2RGB)
+    mask = np.array(Image.open(mask_path))
+
+    retina_image, mask = normalize(retina_image, mask)
+    retina_image, mask = resize(retina_image, mask, size=(512, 512))
+
+    return retina_image, mask
+
+
+def load_training_set():
 
     # Load the training data
     retina_images = []
@@ -64,12 +75,7 @@ def load_images():
         image_path = f"DRIVE/training/images/{i}_training.tif"
         mask_path = f"DRIVE/training/1st_manual/{i}_manual1.gif"
 
-        retina_image = cv2.imread(image_path)
-        retina_image = cv2.cvtColor(retina_image, cv2.COLOR_BGR2RGB)
-        mask = np.array(Image.open(mask_path))
-
-        retina_image, mask = normalize(retina_image, mask)
-        retina_image, mask = resize(retina_image, mask, size=(512, 512))
+        retina_image, mask = load_image(image_path, mask_path)
 
         if retina_image is None:
             print(f"Failed to load image: {image_path}")
@@ -109,10 +115,10 @@ def display(retina_image, true_mask, pred_mask=None):
     plt.show()
 
 
-def prepare_data():
+def prepare_training_data():
 
     # Load the images
-    retina_images, masks = load_images()
+    retina_images, masks = load_training_set()
 
     # Split the data into training and testing sets
     train_indices = np.random.rand(len(retina_images)) < 0.7
@@ -141,7 +147,7 @@ def prepare_data():
 
 def train_model():
 
-    train_batches, test_batches = prepare_data()
+    train_batches, test_batches = prepare_training_data()
 
     # Create and train the model
     model = create_model()
@@ -226,6 +232,5 @@ def unet_model(output_channels, down_stack, up_stack):
 
 if __name__ == "__main__":
     # Set seed for reproducibility, the number was chosen by @rafixxx4k, DM him for more information
-    #  np.random.seed(42)
-    # train_model()
-    find_vessels(None, None)
+    # np.random.seed(42)
+    train_model()
