@@ -32,9 +32,16 @@ def find_vessels(retina_image, mask):
     prediction = model.predict(retina_image)
     prediction = tf.math.argmax(prediction, axis=-1)
     prediction = tf.squeeze(prediction)
-    retina_image, mask = resize(retina_image, mask, size=(584, 512))
 
-    return prediction.numpy().astype(bool)
+    prediction = tf.image.resize(
+        prediction[..., tf.newaxis],
+        (584, 565),
+        method="bilinear",
+    )
+    prediction = tf.squeeze(prediction)
+    prediction = tf.cast(prediction, bool)
+    prediction = prediction.numpy().astype(bool)
+    return prediction
 
 
 def normalize(input_image, input_mask):
