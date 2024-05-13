@@ -128,15 +128,19 @@ class ImageLoaderApp:
             self.image_entry.delete(0, "end")
             return
         if self.mode_var.get() == "train":
-            self.retina_image = np.array(Image.open(self.training_images[image_number]))
-            self.mask = np.array(Image.open(self.training_mask[image_number]))
+            self.retina_image_path = self.training_images[image_number]
+            self.mask_path = self.training_mask[image_number]
+            self.retina_image = np.array(Image.open(self.retina_image_path))
+            self.mask = np.array(Image.open(self.mask_path))
             self.manual = np.array(Image.open(self.training_manual[image_number]))
             self.update_image(0, 0, self.retina_image)
             self.update_image(0, 1, self.mask)
             self.update_image(0, 2, self.manual)
         else:
-            self.retina_image = np.array(Image.open(self.test_images[image_number]))
-            self.mask = np.array(Image.open(self.test_mask[image_number]))
+            self.retina_image_path = self.test_images[image_number]
+            self.mask_path = self.test_mask[image_number]
+            self.retina_image = np.array(Image.open(self.retina_image_path))
+            self.mask = np.array(Image.open(self.mask_path))
             self.manual = None
             self.update_image(0, 0, self.retina_image)
             self.update_image(0, 1, self.mask)
@@ -172,8 +176,18 @@ class ImageLoaderApp:
             print("Manual not available")
 
     def test_model(self):
-        # Function to test the model
-        pass
+        from na5 import find_vessels
+
+        if self.retina_image is None:
+            return
+        self.for5 = find_vessels(self.retina_image_path, self.mask_path)
+        self.update_image(1, 2, self.for5)
+
+        if self.manual is not None:
+            print(f"na 5 image{self.image_entry.get()}:", end="\t")
+            accuracy(self.for5.flatten(), self.manual.flatten())
+        else:
+            print("Manual not available")
 
 
 if __name__ == "__main__":
