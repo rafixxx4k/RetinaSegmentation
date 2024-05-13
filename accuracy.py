@@ -19,9 +19,6 @@ def accuracy(image1, image2):
     image1 = np.array(image1, dtype=bool)
     image2 = np.array(image2, dtype=bool)
 
-    # TODO degub different images shapes (for5 especially)
-    print(image1.shape, image2.shape)
-
     for i, j in zip(image1, image2):
         score[i][j] += 1
     accuracy = (score[0][0] + score[1][1]) / sum(sum(score, []))

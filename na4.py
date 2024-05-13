@@ -72,7 +72,7 @@ def train_knn():
 
     window_size = 5
     features, labels = [], []
-    for i in range(21, 41):
+    for i in range(21, 31):
         # Load the image and manual mask
         image = np.array(Image.open(f"DRIVE/training/images/{i}_training.tif"))
         manual = np.array(Image.open(f"DRIVE/training/1st_manual/{i}_manual1.gif"))

@@ -78,7 +78,7 @@ def load_training_set():
     retina_images = []
     masks = []
 
-    for i in range(21, 41):
+    for i in range(21, 31):
         image_path = f"DRIVE/training/images/{i}_training.tif"
         mask_path = f"DRIVE/training/1st_manual/{i}_manual1.gif"
 
