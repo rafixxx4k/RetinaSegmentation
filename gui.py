@@ -157,7 +157,8 @@ class ImageLoaderApp:
 
         if self.manual is not None:
             print(f"na 3 image{self.image_entry.get()}:", end="\t")
-            accuracy(self.for3.flatten(), self.manual.flatten())
+            accuracy(self.manual.flatten(), self.for3.flatten())
+
         else:
             print("Manual not available")
 
@@ -171,7 +172,8 @@ class ImageLoaderApp:
 
         if self.manual is not None:
             print(f"na 4 image{self.image_entry.get()}:", end="\t")
-            accuracy(self.for4.flatten(), self.manual.flatten())
+            accuracy(self.manual.flatten(), self.for4.flatten())
+
         else:
             print("Manual not available")
 
@@ -185,7 +187,7 @@ class ImageLoaderApp:
 
         if self.manual is not None:
             print(f"na 5 image{self.image_entry.get()}:", end="\t")
-            accuracy(self.for5.flatten(), self.manual.flatten())
+            accuracy(self.manual.flatten(), self.for5.flatten())
         else:
             print("Manual not available")
 
