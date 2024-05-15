@@ -24,5 +24,6 @@ def accuracy(image1, image2):
     accuracy = (score[0][0] + score[1][1]) / sum(sum(score, []))
     sensitivity = score[1][1] / sum(score[1])
     specificity = score[0][0] / sum(score[0])
-    print(f"{accuracy:.2f}\t{sensitivity:.2f}\t{specificity:.2f}")
+    precision = score[1][1] / (score[1][1] + score[0][1])
+    print(f"{accuracy:.2f}\t{sensitivity:.2f}\t{specificity:.2f}\t{precision:.2f}")
     return accuracy, sensitivity, specificity
